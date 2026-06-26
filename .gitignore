@@ -1,0 +1,4 @@
+node_modules/
+
+# Note: dist/ is intentionally committed so the plugin can be imported into
+# Figma without a build step. Run `npm run build` to regenerate it.

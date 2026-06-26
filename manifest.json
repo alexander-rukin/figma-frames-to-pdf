@@ -1,0 +1,13 @@
+{
+  "name": "Frames to PDF",
+  "id": "frames-to-pdf-export-local",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "reasoning": "The plugin works fully offline: it exports frames via the Figma API and merges them locally with a bundled PDF library."
+  }
+}
