@@ -62,7 +62,7 @@ let collected: ExportedFrame[] = [];
 let compactFrames: CompactFrame[] = [];
 let expectedCount = 0;
 let busy = false;
-let activeMode: Mode = "vector";
+let activeMode: Mode = "compact";
 
 // ---- helpers ----------------------------------------------------------------
 function setBusy(value: boolean) {

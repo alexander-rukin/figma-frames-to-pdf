@@ -176,12 +176,12 @@
         <div>
           <label for="mode">Mode</label>
           <select id="mode">
-            <option value="vector" selected>Vector — crisp, fully selectable (larger)</option>
-            <option value="compact">Compact — small, selectable text overlay</option>
+            <option value="compact" selected>Compact — small file, selectable text + links (recommended)</option>
+            <option value="vector">Vector — crisp at any zoom, larger file</option>
           </select>
         </div>
 
-        <div id="compact-opts" style="display:none; flex-direction:column; gap:10px;">
+        <div id="compact-opts" style="display:flex; flex-direction:column; gap:10px;">
           <div>
             <label for="raster-scale">Raster resolution</label>
             <select id="raster-scale">
@@ -199,7 +199,7 @@
           </div>
         </div>
 
-        <div id="vector-opts" style="display:flex; flex-direction:column; gap:10px;">
+        <div id="vector-opts" style="display:none; flex-direction:column; gap:10px;">
           <div>
             <label for="image-quality">Image quality</label>
             <select id="image-quality">

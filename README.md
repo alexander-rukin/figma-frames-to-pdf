@@ -39,9 +39,9 @@ You only do this once. The plugin stays installed.
 3. In the plugin window:
    - Check the **list of frames** — drag rows to reorder, untick any you don't
      want. The numbers are the final page order.
-   - Open **Output options** and pick a **Mode**:
-     - **Compact** — best for sending decks. Small file, selectable text,
-       clickable links.
+   - Open **Output options** and pick a **Mode** (defaults to **Compact**):
+     - **Compact** *(default)* — best for sending decks. Small file, selectable
+       text, clickable links.
      - **Vector** — when you need the sharpest possible graphics and don't mind a
        bigger file.
    - (Optional) change the **File name**.

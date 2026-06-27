@@ -149,7 +149,7 @@
     </style>
   </head>
   <body>
-    <h1>Frames → PDF <span class="ver">v1.5.0 · 26.06 17:16</span></h1>
+    <h1>Frames → PDF <span class="ver">v1.6.0 · 27.06 12:01</span></h1>
 
     <div class="list-head">
       <span id="count">Loading frames…</span>
@@ -176,12 +176,12 @@
         <div>
           <label for="mode">Mode</label>
           <select id="mode">
-            <option value="vector" selected>Vector — crisp, fully selectable (larger)</option>
-            <option value="compact">Compact — small, selectable text overlay</option>
+            <option value="compact" selected>Compact — small file, selectable text + links (recommended)</option>
+            <option value="vector">Vector — crisp at any zoom, larger file</option>
           </select>
         </div>
 
-        <div id="compact-opts" style="display:none; flex-direction:column; gap:10px;">
+        <div id="compact-opts" style="display:flex; flex-direction:column; gap:10px;">
           <div>
             <label for="raster-scale">Raster resolution</label>
             <select id="raster-scale">
@@ -199,7 +199,7 @@
           </div>
         </div>
 
-        <div id="vector-opts" style="display:flex; flex-direction:column; gap:10px;">
+        <div id="vector-opts" style="display:none; flex-direction:column; gap:10px;">
           <div>
             <label for="image-quality">Image quality</label>
             <select id="image-quality">
@@ -20197,7 +20197,7 @@
   var compactFrames = [];
   var expectedCount = 0;
   var busy = false;
-  var activeMode = "vector";
+  var activeMode = "compact";
   function setBusy(value) {
     busy = value;
     exportBtn.disabled = value;
