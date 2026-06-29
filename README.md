@@ -48,7 +48,12 @@ You only do this once. The plugin stays installed.
 4. Click **Export … to PDF**. The PDF downloads automatically.
 
 When it's done, the status line shows the page count and final size, e.g.
-`Done — 25 pages, 9.8 MB · 25 with text · 31 links`.
+`Done — 25 pages, 9.8 MB · 25 text runs · 31 links`.
+
+**If something goes wrong** (it hangs or stops), open the **Log** section at the
+bottom of the plugin, click **Copy**, and send the text. Each frame logs a
+"→ rendering" line before it starts and a "✓" line when it finishes, so the last
+line shows exactly where it stopped.
 
 ### Compact mode settings (optional)
 

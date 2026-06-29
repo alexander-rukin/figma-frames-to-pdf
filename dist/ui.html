@@ -146,10 +146,44 @@
       .status { min-height: 16px; color: var(--text-secondary); }
       .status.error { color: var(--error); }
       .status.success { color: var(--success); }
+
+      #log-box { border-top: 1px solid var(--border); padding-top: 8px; }
+      #log-box > summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+      #log-box > summary::-webkit-details-marker { display: none; }
+      #copy-log {
+        width: auto;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text);
+        background: var(--input-bg);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+      }
+      #log {
+        margin: 8px 0 0;
+        max-height: 160px;
+        overflow: auto;
+        padding: 8px;
+        background: var(--input-bg);
+        border-radius: 6px;
+        font: 10px/1.5 ui-monospace, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: var(--text-secondary);
+      }
     </style>
   </head>
   <body>
-    <h1>Frames → PDF <span class="ver">v1.7.0 · 29.06 12:14</span></h1>
+    <h1>Frames → PDF <span class="ver">v1.8.0 · 29.06 12:27</span></h1>
 
     <div class="list-head">
       <span id="count">Loading frames…</span>
@@ -237,6 +271,14 @@
 
     <div id="progress-wrap"><div id="progress-bar"></div></div>
     <div id="status" class="status"></div>
+
+    <details id="log-box">
+      <summary>
+        <span>Log</span>
+        <button id="copy-log" type="button">Copy</button>
+      </summary>
+      <pre id="log"></pre>
+    </details>
 
     <script>"use strict";
 (() => {
@@ -52666,6 +52708,9 @@
   var statusEl = $("status");
   var progressWrap = $("progress-wrap");
   var progressBar = $("progress-bar");
+  var logBox = $("log-box");
+  var logEl = $("log");
+  var copyLogBtn = $("copy-log");
   var frames = [];
   var collected = [];
   var compactFrames = [];
@@ -52683,6 +52728,14 @@
   function setProgress(done2, total) {
     progressWrap.style.display = total > 0 ? "block" : "none";
     progressBar.style.width = total > 0 ? `${Math.round(done2 / total * 100)}%` : "0%";
+  }
+  function appendLog(text) {
+    logEl.textContent += (logEl.textContent ? "\n" : "") + text;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function clearLog() {
+    logEl.textContent = "";
+    logBox.open = true;
   }
   function fmtBytes(n) {
     const kb = n / 1024;
@@ -52805,6 +52858,9 @@
     saved += recompressFlate(merged);
     setStatus("Writing PDF\u2026");
     const out = await merged.save({ useObjectStreams: true });
+    appendLog(
+      `UI: merged ${collected.length} page(s) \u2192 ${fmtBytes(out.length)}` + (saved > 1024 ? ` (saved ${fmtBytes(saved)})` : "")
+    );
     triggerDownload(out);
     const savedText = saved > 1024 ? ` \xB7 saved ${fmtBytes(saved)}` : "";
     setStatus(
@@ -52851,14 +52907,20 @@
       } catch (e) {
       }
     }
+    appendLog(`UI: recompressed ${compactFrames.length} raster page(s)`);
     setStatus("Composing compact PDF (raster + selectable text)\u2026");
+    const tc = Date.now();
     const result = await buildCompactPdf(compactFrames, FONT_BYTES);
+    appendLog(
+      `UI: composed PDF ${fmtBytes(result.bytes.length)} in ${Date.now() - tc}ms \xB7 ${result.textRuns} text runs \xB7 ${result.links} links`
+    );
     triggerDownload(result.bytes);
     const linkNote = result.links > 0 ? ` \xB7 ${result.links} links` : "";
     setStatus(
       `Done \u2014 ${compactFrames.length} page(s), ${fmtBytes(result.bytes.length)} \xB7 ${result.textRuns} text runs${linkNote}.`,
       "success"
     );
+    appendLog("Done.");
     setProgress(0, 0);
     setBusy(false);
     updateExportLabel();
@@ -52867,6 +52929,9 @@
     const msg = event.data.pluginMessage;
     if (!msg) return;
     switch (msg.type) {
+      case "log":
+        appendLog(msg.text);
+        break;
       case "frame-list": {
         const prev = new Map(frames.map((f) => [f.id, f]));
         frames = msg.frames.map((f) => {
@@ -52955,6 +53020,8 @@
       return;
     }
     activeMode = modeSelect.value;
+    clearLog();
+    appendLog(`Export started \u2014 mode: ${activeMode}, ${ids.length} frame(s)`);
     setBusy(true);
     setStatus("Requesting frames from Figma\u2026");
     parent.postMessage(
@@ -52968,6 +53035,23 @@
       },
       "*"
     );
+  };
+  copyLogBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const text = logEl.textContent || "";
+    const done2 = (ok) => {
+      copyLogBtn.textContent = ok ? "Copied" : "Select & copy";
+      setTimeout(() => copyLogBtn.textContent = "Copy", 1500);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(
+        () => done2(true),
+        () => done2(false)
+      );
+    } catch (e2) {
+      done2(false);
+    }
   };
   parent.postMessage({ pluginMessage: { type: "init" } }, "*");
 })();

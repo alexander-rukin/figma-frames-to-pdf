@@ -28,6 +28,10 @@
   ]);
   figma.showUI(__html__, { width: 360, height: 600, themeColors: true });
   var lastSort = "position";
+  function log(text) {
+    console.log("[Frames\u2192PDF]", text);
+    figma.ui.postMessage({ type: "log", text });
+  }
   function isExportable(node) {
     return EXPORTABLE_TYPES.has(node.type);
   }
@@ -81,13 +85,17 @@
       return;
     }
     figma.ui.postMessage({ type: "frame-count", count: ids.length });
+    log(`Vector export started \u2014 ${ids.length} frame(s)`);
     let exported = 0;
     for (let i = 0; i < ids.length; i++) {
       const node = await figma.getNodeByIdAsync(ids[i]);
       if (!node || typeof node.exportAsync !== "function") {
         continue;
       }
+      const pos = `${i + 1}/${ids.length}`;
+      log(`\u2192 [${pos}] ${node.name} \u2014 exporting PDF\u2026`);
       try {
+        const tf = Date.now();
         const bytes = await node.exportAsync({ format: "PDF" });
         figma.ui.postMessage({
           type: "frame-exported",
@@ -96,7 +104,9 @@
           bytes
         });
         exported++;
+        log(`\u2713 [${pos}] ${node.name} \u2014 ${Date.now() - tf}ms \xB7 ${Math.round(bytes.length / 1024)}KB`);
       } catch (err) {
+        log(`\u2717 [${pos}] ${node.name} \u2014 FAILED: ${String(err)}`);
         figma.ui.postMessage({
           type: "export-error",
           message: `Failed to export "${node.name}": ${String(err)}`
@@ -176,29 +186,41 @@
       return;
     }
     figma.ui.postMessage({ type: "frame-count", count: ids.length });
+    log(`Compact export started \u2014 ${ids.length} frame(s) at ${scale}\xD7 raster`);
+    const t0 = Date.now();
     let exported = 0;
     for (let i = 0; i < ids.length; i++) {
       const node = await figma.getNodeByIdAsync(ids[i]);
       if (!node || typeof node.exportAsync !== "function") continue;
       const box = node.absoluteBoundingBox;
       if (!box) continue;
+      const pos = `${i + 1}/${ids.length}`;
+      log(`\u2192 [${pos}] ${node.name} \u2014 rendering\u2026`);
       try {
+        const tf = Date.now();
         const jpeg = await node.exportAsync({
           format: "JPG",
           constraint: { type: "SCALE", value: scale }
         });
+        const tRaster = Date.now() - tf;
+        const texts = collectTexts(node);
+        const links = collectLinks(node);
         figma.ui.postMessage({
           type: "frame-compact",
           index: exported,
           name: node.name,
           jpeg,
-          texts: collectTexts(node),
-          links: collectLinks(node),
+          texts,
+          links,
           wpt: Math.round(box.width),
           hpt: Math.round(box.height)
         });
         exported++;
+        log(
+          `\u2713 [${pos}] ${node.name} \u2014 ${Date.now() - tf}ms (raster ${tRaster}ms, ${Math.round(jpeg.length / 1024)}KB) \xB7 ${texts.length} texts \xB7 ${links.length} links`
+        );
       } catch (err) {
+        log(`\u2717 [${pos}] ${node.name} \u2014 FAILED: ${String(err)}`);
         figma.ui.postMessage({
           type: "export-error",
           message: `Failed to export "${node.name}": ${String(err)}`
@@ -206,6 +228,7 @@
         return;
       }
     }
+    log(`Figma export finished \u2014 ${exported} frame(s) in ${Date.now() - t0}ms`);
     if (exported === 0) {
       figma.ui.postMessage({
         type: "export-error",

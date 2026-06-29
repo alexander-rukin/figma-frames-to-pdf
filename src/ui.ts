@@ -61,6 +61,9 @@ const compactQualityVal = $<HTMLSpanElement>("compact-quality-val");
 const statusEl = $<HTMLDivElement>("status");
 const progressWrap = $<HTMLDivElement>("progress-wrap");
 const progressBar = $<HTMLDivElement>("progress-bar");
+const logBox = $<HTMLDetailsElement>("log-box");
+const logEl = $<HTMLPreElement>("log");
+const copyLogBtn = $<HTMLButtonElement>("copy-log");
 
 // ---- state ------------------------------------------------------------------
 let frames: FrameItem[] = [];
@@ -84,6 +87,16 @@ function setStatus(text: string, kind: "info" | "error" | "success" = "info") {
 function setProgress(done: number, total: number) {
   progressWrap.style.display = total > 0 ? "block" : "none";
   progressBar.style.width = total > 0 ? `${Math.round((done / total) * 100)}%` : "0%";
+}
+
+function appendLog(text: string) {
+  logEl.textContent += (logEl.textContent ? "\n" : "") + text;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearLog() {
+  logEl.textContent = "";
+  logBox.open = true; // reveal the log so progress is visible during export
 }
 
 function fmtBytes(n: number): string {
@@ -230,6 +243,10 @@ async function mergeAndDownload() {
 
   setStatus("Writing PDF…");
   const out = await merged.save({ useObjectStreams: true });
+  appendLog(
+    `UI: merged ${collected.length} page(s) → ${fmtBytes(out.length)}` +
+      (saved > 1024 ? ` (saved ${fmtBytes(saved)})` : "")
+  );
 
   triggerDownload(out);
 
@@ -286,8 +303,14 @@ async function buildCompactAndDownload() {
     }
   }
 
+  appendLog(`UI: recompressed ${compactFrames.length} raster page(s)`);
   setStatus("Composing compact PDF (raster + selectable text)…");
+  const tc = Date.now();
   const result = await buildCompactPdf(compactFrames, FONT_BYTES);
+  appendLog(
+    `UI: composed PDF ${fmtBytes(result.bytes.length)} in ${Date.now() - tc}ms · ` +
+      `${result.textRuns} text runs · ${result.links} links`
+  );
   triggerDownload(result.bytes);
 
   const linkNote = result.links > 0 ? ` · ${result.links} links` : "";
@@ -295,6 +318,7 @@ async function buildCompactAndDownload() {
     `Done — ${compactFrames.length} page(s), ${fmtBytes(result.bytes.length)} · ${result.textRuns} text runs${linkNote}.`,
     "success"
   );
+  appendLog("Done.");
   setProgress(0, 0);
   setBusy(false);
   updateExportLabel();
@@ -306,6 +330,10 @@ window.onmessage = async (event: MessageEvent) => {
   if (!msg) return;
 
   switch (msg.type) {
+    case "log":
+      appendLog(msg.text);
+      break;
+
     case "frame-list": {
       // Preserve include/order/thumbs for frames that are still present.
       const prev = new Map(frames.map((f) => [f.id, f]));
@@ -408,6 +436,8 @@ exportBtn.onclick = () => {
     return;
   }
   activeMode = modeSelect.value as Mode;
+  clearLog();
+  appendLog(`Export started — mode: ${activeMode}, ${ids.length} frame(s)`);
   setBusy(true);
   setStatus("Requesting frames from Figma…");
   parent.postMessage(
@@ -421,6 +451,24 @@ exportBtn.onclick = () => {
     },
     "*"
   );
+};
+
+copyLogBtn.onclick = (e) => {
+  e.preventDefault();
+  e.stopPropagation(); // don't toggle the <details>
+  const text = logEl.textContent || "";
+  const done = (ok: boolean) => {
+    copyLogBtn.textContent = ok ? "Copied" : "Select & copy";
+    setTimeout(() => (copyLogBtn.textContent = "Copy"), 1500);
+  };
+  try {
+    navigator.clipboard.writeText(text).then(
+      () => done(true),
+      () => done(false)
+    );
+  } catch {
+    done(false);
+  }
 };
 
 // Kick things off: ask the sandbox for the current frame list.

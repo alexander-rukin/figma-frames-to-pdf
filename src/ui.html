@@ -146,6 +146,40 @@
       .status { min-height: 16px; color: var(--text-secondary); }
       .status.error { color: var(--error); }
       .status.success { color: var(--success); }
+
+      #log-box { border-top: 1px solid var(--border); padding-top: 8px; }
+      #log-box > summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+      #log-box > summary::-webkit-details-marker { display: none; }
+      #copy-log {
+        width: auto;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--text);
+        background: var(--input-bg);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+      }
+      #log {
+        margin: 8px 0 0;
+        max-height: 160px;
+        overflow: auto;
+        padding: 8px;
+        background: var(--input-bg);
+        border-radius: 6px;
+        font: 10px/1.5 ui-monospace, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: var(--text-secondary);
+      }
     </style>
   </head>
   <body>
@@ -237,6 +271,14 @@
 
     <div id="progress-wrap"><div id="progress-bar"></div></div>
     <div id="status" class="status"></div>
+
+    <details id="log-box">
+      <summary>
+        <span>Log</span>
+        <button id="copy-log" type="button">Copy</button>
+      </summary>
+      <pre id="log"></pre>
+    </details>
 
     <!-- BUNDLE -->
   </body>

@@ -16,6 +16,15 @@ figma.showUI(__html__, { width: 360, height: 600, themeColors: true });
 
 let lastSort: SortMode = "position";
 
+// Send a log line to the UI's log panel and the dev console. A "→ start" line
+// before each frame and a "✓ done" line after means the LAST line on a hang
+// pinpoints exactly which frame and step stalled.
+function log(text: string): void {
+  // eslint-disable-next-line no-console
+  console.log("[Frames→PDF]", text);
+  figma.ui.postMessage({ type: "log", text });
+}
+
 function isExportable(node: SceneNode): boolean {
   return EXPORTABLE_TYPES.has(node.type);
 }
@@ -81,6 +90,7 @@ async function runExport(ids: string[]): Promise<void> {
   }
 
   figma.ui.postMessage({ type: "frame-count", count: ids.length });
+  log(`Vector export started — ${ids.length} frame(s)`);
 
   let exported = 0;
   for (let i = 0; i < ids.length; i++) {
@@ -88,7 +98,10 @@ async function runExport(ids: string[]): Promise<void> {
     if (!node || typeof (node as ExportMixin).exportAsync !== "function") {
       continue; // frame was deleted between listing and export
     }
+    const pos = `${i + 1}/${ids.length}`;
+    log(`→ [${pos}] ${node.name} — exporting PDF…`);
     try {
+      const tf = Date.now();
       const bytes = await (node as ExportMixin).exportAsync({ format: "PDF" });
       figma.ui.postMessage({
         type: "frame-exported",
@@ -97,7 +110,9 @@ async function runExport(ids: string[]): Promise<void> {
         bytes,
       });
       exported++;
+      log(`✓ [${pos}] ${node.name} — ${Date.now() - tf}ms · ${Math.round(bytes.length / 1024)}KB`);
     } catch (err) {
+      log(`✗ [${pos}] ${node.name} — FAILED: ${String(err)}`);
       figma.ui.postMessage({
         type: "export-error",
         message: `Failed to export "${node.name}": ${String(err)}`,
@@ -217,6 +232,8 @@ async function runCompactExport(ids: string[], scale: number): Promise<void> {
   }
 
   figma.ui.postMessage({ type: "frame-count", count: ids.length });
+  log(`Compact export started — ${ids.length} frame(s) at ${scale}× raster`);
+  const t0 = Date.now();
 
   let exported = 0;
   for (let i = 0; i < ids.length; i++) {
@@ -225,24 +242,36 @@ async function runCompactExport(ids: string[], scale: number): Promise<void> {
     const box = node.absoluteBoundingBox;
     if (!box) continue;
 
+    const pos = `${i + 1}/${ids.length}`;
+    log(`→ [${pos}] ${node.name} — rendering…`);
     try {
+      const tf = Date.now();
       // Pixel-perfect raster of the WHOLE frame (exact Figma render).
       const jpeg = await (node as ExportMixin).exportAsync({
         format: "JPG",
         constraint: { type: "SCALE", value: scale },
       });
+      const tRaster = Date.now() - tf;
+      const texts = collectTexts(node);
+      const links = collectLinks(node);
       figma.ui.postMessage({
         type: "frame-compact",
         index: exported,
         name: node.name,
         jpeg,
-        texts: collectTexts(node),
-        links: collectLinks(node),
+        texts,
+        links,
         wpt: Math.round(box.width),
         hpt: Math.round(box.height),
       });
       exported++;
+      log(
+        `✓ [${pos}] ${node.name} — ${Date.now() - tf}ms ` +
+          `(raster ${tRaster}ms, ${Math.round(jpeg.length / 1024)}KB) · ` +
+          `${texts.length} texts · ${links.length} links`
+      );
     } catch (err) {
+      log(`✗ [${pos}] ${node.name} — FAILED: ${String(err)}`);
       figma.ui.postMessage({
         type: "export-error",
         message: `Failed to export "${node.name}": ${String(err)}`,
@@ -250,6 +279,8 @@ async function runCompactExport(ids: string[], scale: number): Promise<void> {
       return;
     }
   }
+
+  log(`Figma export finished — ${exported} frame(s) in ${Date.now() - t0}ms`);
 
   if (exported === 0) {
     figma.ui.postMessage({
