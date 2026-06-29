@@ -1,11 +1,10 @@
-// Verify the compact composite keeps the overlaid text selectable even though
-// it's drawn invisibly (opacity 0) over the raster. No font substitution: the
-// text comes from a separate "text-only" PDF, exactly like Figma's text export.
+// Verify the compact composite: invisible text overlay is selectable, and the
+// URL link annotation is clickable. No document cloning is involved.
 import * as esbuild from "esbuild";
 import { rmSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, PDFName, PDFArray, PDFDict } from "pdf-lib";
 
 const bundlePath = new URL("./.compact.bundle.mjs", import.meta.url);
 await esbuild.build({
@@ -13,20 +12,14 @@ await esbuild.build({
   bundle: true,
   outfile: bundlePath.pathname,
   format: "esm",
-  external: ["pdf-lib"],
+  external: ["pdf-lib", "@pdf-lib/fontkit"],
 });
 process.on("exit", () => { try { rmSync(bundlePath, { force: true }); } catch {} });
 const { buildCompactPdf } = await import(bundlePath.href);
 
 function assert(c, m) { if (!c) { console.error("FAIL:", m); process.exit(1); } console.log("ok -", m); }
 
-// A stand-in "text-only PDF" (as Figma would produce from a stripped clone).
-const textDoc = await PDFDocument.create();
-const tp = textDoc.addPage([400, 300]);
-const font = await textDoc.embedFont(StandardFonts.Helvetica);
-tp.drawText("Investment Opportunity", { x: 20, y: 250, size: 24, font });
-tp.drawText("Our team and traction", { x: 20, y: 200, size: 18, font });
-const textPdf = await textDoc.save();
+const fontBytes = new Uint8Array(await readFile("assets/font.ttf"));
 
 // 1x1 baseline JPEG stand-in for the raster background.
 const jpeg = Uint8Array.from(
@@ -43,36 +36,37 @@ const frames = [
     index: 0,
     name: "slide",
     jpeg,
-    textPdf,
+    texts: [
+      { chars: "Investment Opportunity", x: 20, y: 40, w: 360, h: 30, size: 24 },
+      { chars: "Привет команда", x: 20, y: 90, w: 360, h: 24, size: 18 },
+    ],
     links: [{ url: "https://blooper.ai/", x: 20, y: 40, w: 120, h: 24 }],
     wpt: 400,
     hpt: 300,
   },
 ];
-const result = await buildCompactPdf(frames);
 
+const result = await buildCompactPdf(frames, fontBytes);
 assert(result.bytes.length > 0, `produced a PDF (${Math.round(result.bytes.length / 1024)} KB)`);
-assert(result.textPages === 1, `text layer composited onto the page (${result.textPages})`);
+assert(result.textRuns === 2, `both text runs placed (${result.textRuns})`);
 assert(result.links === 1, `link annotation added (${result.links})`);
 
 const out = "/tmp/compact-composite.pdf";
 await writeFile(out, result.bytes);
 const text = execFileSync("pdftotext", [out, "-"], { encoding: "utf8" });
-assert(text.includes("Investment Opportunity"), "overlaid text is selectable despite opacity 0");
-assert(text.includes("Our team"), "second text run is selectable too");
+assert(text.includes("Investment Opportunity"), "Latin overlay text is selectable (opacity 0)");
+assert(text.includes("Привет"), "Cyrillic overlay text is selectable");
 
-// Confirm the Link annotation with the URL survived the save.
 const reloaded = await PDFDocument.load(result.bytes);
-const { PDFName: N, PDFArray: A, PDFDict: D } = await import("pdf-lib");
-const annots = reloaded.getPage(0).node.lookup(N.of("Annots"));
+const annots = reloaded.getPage(0).node.lookup(PDFName.of("Annots"));
 let foundUrl = "";
-if (annots instanceof A) {
+if (annots instanceof PDFArray) {
   for (let i = 0; i < annots.size(); i++) {
     const an = annots.lookup(i);
-    if (an instanceof D) {
-      const act = an.lookup(N.of("A"));
-      if (act instanceof D) {
-        const u = act.lookup(N.of("URI"));
+    if (an instanceof PDFDict) {
+      const act = an.lookup(PDFName.of("A"));
+      if (act instanceof PDFDict) {
+        const u = act.lookup(PDFName.of("URI"));
         if (u && "asString" in u) foundUrl = u.asString();
       }
     }

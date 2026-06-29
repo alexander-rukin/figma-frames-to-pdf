@@ -26,6 +26,7 @@ async function buildUi() {
     write: false,
     target: "es2017",
     format: "iife",
+    loader: { ".ttf": "base64" },
     logLevel: "info",
   });
   const js = result.outputFiles[0].text;
@@ -56,6 +57,7 @@ if (watch) {
     write: false,
     target: "es2017",
     format: "iife",
+    loader: { ".ttf": "base64" },
     plugins: [
       {
         name: "inline-ui",

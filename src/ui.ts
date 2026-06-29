@@ -6,6 +6,12 @@ import {
   ImageQuality,
 } from "./optimize";
 import { buildCompactPdf, CompactFrame } from "./compact";
+import fontBase64 from "../assets/font.ttf";
+
+// Font for the compact mode's INVISIBLE selectable text layer only — it is
+// never displayed (the visible page is Figma's exact raster), so it cannot
+// affect the design. Latin + Cyrillic.
+const FONT_BYTES = Uint8Array.from(atob(fontBase64), (c) => c.charCodeAt(0));
 
 const IMAGE_PRESETS: Record<string, ImageQuality> = {
   original: { maxDim: 0, quality: 1 },
@@ -280,13 +286,13 @@ async function buildCompactAndDownload() {
     }
   }
 
-  setStatus("Composing compact PDF (raster + Figma text)…");
-  const result = await buildCompactPdf(compactFrames);
+  setStatus("Composing compact PDF (raster + selectable text)…");
+  const result = await buildCompactPdf(compactFrames, FONT_BYTES);
   triggerDownload(result.bytes);
 
   const linkNote = result.links > 0 ? ` · ${result.links} links` : "";
   setStatus(
-    `Done — ${compactFrames.length} page(s), ${fmtBytes(result.bytes.length)} · ${result.textPages} with text${linkNote}.`,
+    `Done — ${compactFrames.length} page(s), ${fmtBytes(result.bytes.length)} · ${result.textRuns} text runs${linkNote}.`,
     "success"
   );
   setProgress(0, 0);
@@ -341,7 +347,7 @@ window.onmessage = async (event: MessageEvent) => {
         index: msg.index,
         name: msg.name,
         jpeg: msg.jpeg,
-        textPdf: msg.textPdf,
+        texts: msg.texts,
         links: msg.links,
         wpt: msg.wpt,
         hpt: msg.hpt,

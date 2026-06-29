@@ -76,10 +76,11 @@ re-import the `manifest.json` as in the install steps.)*
 ## Notes
 
 - **Selectable text in Compact mode:** the visible page is an exact image of the
-  Figma frame (nothing shifts), with Figma's own text laid on top as an
-  invisible, selectable layer. Selection highlights land precisely on
-  normally-positioned slides; inside auto-layout groups the highlight can sit a
-  little off, but copied/searched text is always correct.
+  Figma frame, so **nothing in the design shifts**. A selectable text layer is
+  placed on top at full transparency — it's never displayed, so the font used
+  for it can't affect the look; the copied/searched characters are the real text
+  from your frames. Selection highlights land on the right area; they can sit a
+  little off relative to individual words, but copy and Cmd-F are always correct.
 - **Links:** both text hyperlinks and prototype "open URL" actions (on icons,
   logos, buttons) are turned into clickable links in the PDF.
 - **Vector mode & fonts:** if a font's license forbids embedding, Figma outlines

@@ -117,53 +117,50 @@ async function runExport(ids: string[]): Promise<void> {
   figma.ui.postMessage({ type: "export-done", count: exported });
 }
 
-// --- Compact mode: rasterize each frame, keep Figma's own text as an overlay --
+// --- Compact mode: rasterize each frame + read its text/link data (no cloning) --
 
-// Strip a CLONE down to just its text: remove every node that contains no text,
-// and clear container paint so the text-only render has a transparent backdrop.
-// Returns true if any text remained. (Operates on a disposable clone only.)
-function stripToTextOnly(node: SceneNode): boolean {
-  if (node.type === "TEXT") return true;
-  if (!("children" in node)) return false;
-
-  let kept = false;
-  for (const child of [...(node as ChildrenMixin).children]) {
-    if (stripToTextOnly(child as SceneNode)) kept = true;
-    else (child as SceneNode).remove();
-  }
-
-  // Clear this container's own paint so only the glyphs show through.
-  const paintable = node as unknown as {
-    fills?: unknown;
-    strokes?: unknown;
-    effects?: unknown;
-  };
-  try {
-    if ("fills" in paintable) paintable.fills = [];
-  } catch {
-    /* some nodes have non-writable fills */
-  }
-  try {
-    if ("strokes" in paintable) paintable.strokes = [];
-  } catch {
-    /* ignore */
-  }
-  try {
-    if ("effects" in paintable) paintable.effects = [];
-  } catch {
-    /* ignore */
-  }
-  return kept;
+interface TextItem {
+  chars: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  size: number;
 }
 
-// Export a text-only PDF of the frame using Figma's native text (no font
-// substitution). Done on a clone so the user's document is never modified.
 interface LinkItem {
   url: string;
   x: number;
   y: number;
   w: number;
   h: number;
+}
+
+// Collect text runs (for the invisible selectable overlay), in frame px coords.
+function collectTexts(node: SceneNode): TextItem[] {
+  const box = node.absoluteBoundingBox;
+  const out: TextItem[] = [];
+  if (!box || !("findAll" in node)) return out;
+
+  const textNodes = (node as ChildrenMixin & SceneNode).findAll(
+    (n) => n.type === "TEXT"
+  ) as TextNode[];
+
+  for (const t of textNodes) {
+    if (!t.visible) continue;
+    const b = t.absoluteBoundingBox;
+    if (!b) continue;
+    const size = typeof t.fontSize === "number" ? t.fontSize : Math.min(b.height, 16);
+    out.push({
+      chars: t.characters,
+      x: b.x - box.x,
+      y: b.y - box.y,
+      w: b.width,
+      h: b.height,
+      size,
+    });
+  }
+  return out;
 }
 
 // Collect clickable links inside a frame, in frame pixel coords (top-left):
@@ -213,22 +210,6 @@ function collectLinks(node: SceneNode): LinkItem[] {
   return out;
 }
 
-async function exportTextOnlyPdf(node: SceneNode): Promise<Uint8Array | undefined> {
-  if (typeof (node as { clone?: unknown }).clone !== "function") return undefined;
-  const clone = (node as FrameNode).clone() as SceneNode;
-  try {
-    // Move off-canvas so it doesn't flash over the original during export.
-    if ("x" in clone) (clone as LayoutMixin).x += 100000;
-    const hasText = stripToTextOnly(clone);
-    if (!hasText) return undefined;
-    return await (clone as ExportMixin).exportAsync({ format: "PDF" });
-  } catch {
-    return undefined;
-  } finally {
-    clone.remove();
-  }
-}
-
 async function runCompactExport(ids: string[], scale: number): Promise<void> {
   if (ids.length === 0) {
     figma.ui.postMessage({ type: "export-error", message: "No frames selected for export." });
@@ -250,15 +231,12 @@ async function runCompactExport(ids: string[], scale: number): Promise<void> {
         format: "JPG",
         constraint: { type: "SCALE", value: scale },
       });
-      // Figma's own text, on a transparent backdrop, for the selectable overlay.
-      const textPdf = await exportTextOnlyPdf(node);
-
       figma.ui.postMessage({
         type: "frame-compact",
         index: exported,
         name: node.name,
         jpeg,
-        textPdf,
+        texts: collectTexts(node),
         links: collectLinks(node),
         wpt: Math.round(box.width),
         hpt: Math.round(box.height),

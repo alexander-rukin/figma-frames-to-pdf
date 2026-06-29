@@ -113,28 +113,28 @@
     }
     figma.ui.postMessage({ type: "export-done", count: exported });
   }
-  function stripToTextOnly(node) {
-    if (node.type === "TEXT") return true;
-    if (!("children" in node)) return false;
-    let kept = false;
-    for (const child of [...node.children]) {
-      if (stripToTextOnly(child)) kept = true;
-      else child.remove();
+  function collectTexts(node) {
+    const box = node.absoluteBoundingBox;
+    const out = [];
+    if (!box || !("findAll" in node)) return out;
+    const textNodes = node.findAll(
+      (n) => n.type === "TEXT"
+    );
+    for (const t of textNodes) {
+      if (!t.visible) continue;
+      const b = t.absoluteBoundingBox;
+      if (!b) continue;
+      const size = typeof t.fontSize === "number" ? t.fontSize : Math.min(b.height, 16);
+      out.push({
+        chars: t.characters,
+        x: b.x - box.x,
+        y: b.y - box.y,
+        w: b.width,
+        h: b.height,
+        size
+      });
     }
-    const paintable = node;
-    try {
-      if ("fills" in paintable) paintable.fills = [];
-    } catch (e) {
-    }
-    try {
-      if ("strokes" in paintable) paintable.strokes = [];
-    } catch (e) {
-    }
-    try {
-      if ("effects" in paintable) paintable.effects = [];
-    } catch (e) {
-    }
-    return kept;
+    return out;
   }
   function collectLinks(node) {
     const box = node.absoluteBoundingBox;
@@ -170,20 +170,6 @@
     }
     return out;
   }
-  async function exportTextOnlyPdf(node) {
-    if (typeof node.clone !== "function") return void 0;
-    const clone = node.clone();
-    try {
-      if ("x" in clone) clone.x += 1e5;
-      const hasText = stripToTextOnly(clone);
-      if (!hasText) return void 0;
-      return await clone.exportAsync({ format: "PDF" });
-    } catch (e) {
-      return void 0;
-    } finally {
-      clone.remove();
-    }
-  }
   async function runCompactExport(ids, scale) {
     if (ids.length === 0) {
       figma.ui.postMessage({ type: "export-error", message: "No frames selected for export." });
@@ -201,13 +187,12 @@
           format: "JPG",
           constraint: { type: "SCALE", value: scale }
         });
-        const textPdf = await exportTextOnlyPdf(node);
         figma.ui.postMessage({
           type: "frame-compact",
           index: exported,
           name: node.name,
           jpeg,
-          textPdf,
+          texts: collectTexts(node),
           links: collectLinks(node),
           wpt: Math.round(box.width),
           hpt: Math.round(box.height)

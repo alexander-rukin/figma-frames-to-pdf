@@ -1,4 +1,15 @@
 import { PDFDocument, PDFName, PDFString, PDFArray, PDFDict, PDFRef } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+
+// One text run inside a frame, in frame pixel coordinates (top-left origin).
+export interface TextItem {
+  chars: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  size: number;
+}
 
 export interface LinkItem {
   url: string;
@@ -8,13 +19,14 @@ export interface LinkItem {
   h: number;
 }
 
-// A rasterized frame (pixel-perfect render) plus Figma's own text layer,
-// exported as a separate text-only PDF so we never touch or substitute fonts.
+// A rasterized frame (the exact Figma render) plus its text/link data. We never
+// clone or mutate the document — just read text positions — so it stays fast
+// and can't hang on large decks.
 export interface CompactFrame {
   index: number;
   name: string;
   jpeg: Uint8Array; // baseline JPEG of the WHOLE frame (exact Figma render)
-  textPdf?: Uint8Array; // text-only PDF from Figma (native Type 3 text), optional
+  texts: TextItem[]; // for the invisible selectable text layer
   links?: LinkItem[]; // clickable URL links
   wpt: number; // page size in pt (frame px == pt, 1:1)
   hpt: number;
@@ -22,39 +34,50 @@ export interface CompactFrame {
 
 export interface CompactResult {
   bytes: Uint8Array;
-  textPages: number; // pages that got a selectable text layer
-  links: number; // clickable link annotations added
+  textRuns: number;
+  links: number;
 }
 
-/**
- * Compose each page as: a compressed raster of the frame (so heavy vector
- * graphics and full-res images collapse to a small, display-resolution image)
- * with Figma's OWN text drawn on top as an invisible-but-selectable overlay.
- *
- * The visible design is the raster — exactly what Figma rendered, so nothing
- * shifts. The text layer is Figma's native text (its real fonts, Type 3), drawn
- * at opacity 0: copy / Cmd-F / selection work, no font substitution, no drift.
- */
-// Build a clickable URL Link annotation (drawPage/embed don't carry annotations,
-// so we recreate them from the links Figma gave us).
+// Drop control characters that break text placement; keep newlines for wrapping.
+function clean(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\r/g, "").replace(/\t/g, " ").replace(/[\x00-\x09\x0B-\x1F]/g, "");
+}
+
 function makeLinkAnnot(doc: PDFDocument, hpt: number, l: LinkItem): PDFRef {
   const action = doc.context.obj({ Type: "Action", S: "URI" }) as PDFDict;
   action.set(PDFName.of("URI"), PDFString.of(l.url));
-
   const annot = doc.context.obj({
     Type: "Annot",
     Subtype: "Link",
-    // Figma is top-left origin; PDF is bottom-up.
-    Rect: [l.x, hpt - (l.y + l.h), l.x + l.w, hpt - l.y],
+    Rect: [l.x, hpt - (l.y + l.h), l.x + l.w, hpt - l.y], // Figma is top-left; PDF bottom-up
     Border: [0, 0, 0],
   }) as PDFDict;
   annot.set(PDFName.of("A"), action);
   return doc.context.register(annot);
 }
 
-export async function buildCompactPdf(frames: CompactFrame[]): Promise<CompactResult> {
+/**
+ * Compose each page as a compressed raster of the frame (so heavy vector
+ * graphics and full-res images collapse to a small, display-resolution image)
+ * with an INVISIBLE but selectable/searchable text layer on top, and clickable
+ * link annotations.
+ *
+ * The visible page is exactly Figma's render — nothing shifts. The overlaid
+ * text is drawn at opacity 0 purely so copy / Cmd-F / selection work; its font
+ * is never displayed, so it cannot affect the design. The copied/searched
+ * characters are the real ones from Figma.
+ */
+export async function buildCompactPdf(
+  frames: CompactFrame[],
+  fontBytes: Uint8Array
+): Promise<CompactResult> {
   const doc = await PDFDocument.create();
-  let textPages = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  doc.registerFontkit(fontkit as any);
+  const font = await doc.embedFont(fontBytes, { subset: true });
+
+  let textRuns = 0;
   let links = 0;
 
   const ordered = [...frames].sort((a, b) => a.index - b.index);
@@ -68,19 +91,22 @@ export async function buildCompactPdf(frames: CompactFrame[]): Promise<CompactRe
       // If the raster can't embed, the text layer below still gets added.
     }
 
-    if (f.textPdf && f.textPdf.length > 0) {
+    for (const t of f.texts) {
+      const txt = clean(t.chars);
+      if (!txt.trim()) continue;
       try {
-        const [textLayer] = await doc.embedPdf(f.textPdf, [0]);
-        page.drawPage(textLayer, {
-          x: 0,
-          y: 0,
-          width: f.wpt,
-          height: f.hpt,
-          opacity: 0, // invisible overlay — selectable, but the raster is what shows
+        page.drawText(txt, {
+          x: t.x,
+          y: f.hpt - t.y - t.size, // flip to PDF's bottom-up Y, approx baseline
+          size: t.size,
+          font,
+          maxWidth: t.w > 0 ? t.w : undefined,
+          lineHeight: t.size * 1.2,
+          opacity: 0, // invisible — selectable only; the raster is what shows
         });
-        textPages++;
+        textRuns++;
       } catch {
-        // No text layer for this page if Figma's text-only export fails.
+        // A glyph the font can't encode (emoji, CJK) — skip this run only.
       }
     }
 
@@ -94,5 +120,5 @@ export async function buildCompactPdf(frames: CompactFrame[]): Promise<CompactRe
   }
 
   const bytes = await doc.save({ useObjectStreams: true });
-  return { bytes, textPages, links };
+  return { bytes, textRuns, links };
 }
