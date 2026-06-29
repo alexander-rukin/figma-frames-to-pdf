@@ -192,7 +192,7 @@
   </head>
   <body>
     <div class="header">
-      <h1>Frames → PDF <span class="ver">v1.9.1 · 29.06 13:01</span></h1>
+      <h1>Frames → PDF <span class="ver">v1.9.2 · 29.06 13:06</span></h1>
       <div class="menu">
         <button id="menu-btn" type="button" aria-label="More actions">⋯</button>
         <div id="menu-pop" class="menu-pop" hidden>
@@ -53054,19 +53054,35 @@
   document.addEventListener("click", () => {
     menuPop.hidden = true;
   });
-  copyLogBtn.onclick = () => {
-    const text = logEl.textContent || "";
-    const done2 = (ok) => {
-      copyLogBtn.textContent = ok ? "Copied \u2713" : "Copy failed";
-      setTimeout(() => {
-        copyLogBtn.textContent = "Copy logs";
-        menuPop.hidden = true;
-      }, 1e3);
-    };
+  function copyToClipboard(text) {
     try {
-      navigator.clipboard.writeText(text).then(() => done2(true), () => done2(false));
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
     } catch (e) {
-      done2(false);
+      return false;
+    }
+  }
+  copyLogBtn.onclick = () => {
+    menuPop.hidden = true;
+    const text = (logEl.textContent || "").trim();
+    if (!text) {
+      setStatus("No logs yet \u2014 run an export first.", "info");
+      return;
+    }
+    const lines = text.split("\n").length;
+    if (copyToClipboard(text)) {
+      setStatus(`Logs copied to clipboard \u2713 (${lines} lines).`, "success");
+    } else {
+      console.log(text);
+      setStatus("Couldn't copy \u2014 logs printed to the dev console instead.", "error");
     }
   };
   parent.postMessage({ pluginMessage: { type: "init" } }, "*");

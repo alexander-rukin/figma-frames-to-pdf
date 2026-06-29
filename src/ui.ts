@@ -463,19 +463,39 @@ document.addEventListener("click", () => {
   menuPop.hidden = true;
 });
 
-copyLogBtn.onclick = () => {
-  const text = logEl.textContent || "";
-  const done = (ok: boolean) => {
-    copyLogBtn.textContent = ok ? "Copied ✓" : "Copy failed";
-    setTimeout(() => {
-      copyLogBtn.textContent = "Copy logs";
-      menuPop.hidden = true;
-    }, 1000);
-  };
+// Reliable copy inside the Figma plugin iframe (navigator.clipboard is often
+// blocked there, so fall back to a hidden textarea + execCommand).
+function copyToClipboard(text: string): boolean {
   try {
-    navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
   } catch {
-    done(false);
+    return false;
+  }
+}
+
+copyLogBtn.onclick = () => {
+  menuPop.hidden = true;
+  const text = (logEl.textContent || "").trim();
+  if (!text) {
+    setStatus("No logs yet — run an export first.", "info");
+    return;
+  }
+  const lines = text.split("\n").length;
+  if (copyToClipboard(text)) {
+    setStatus(`Logs copied to clipboard ✓ (${lines} lines).`, "success");
+  } else {
+    // eslint-disable-next-line no-console
+    console.log(text);
+    setStatus("Couldn't copy — logs printed to the dev console instead.", "error");
   }
 };
 
