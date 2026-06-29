@@ -50,8 +50,8 @@ You only do this once. The plugin stays installed.
 When it's done, the status line shows the page count and final size, e.g.
 `Done — 25 pages, 9.8 MB · 25 text runs · 31 links`.
 
-**If something goes wrong** (it hangs or stops), open the **Log** section at the
-bottom of the plugin, click **Copy**, and send the text. Each frame logs a
+**If something goes wrong** (it hangs or stops), click the **⋯** menu in the
+top-right of the plugin → **Copy logs**, and send the text. Each frame logs a
 "→ rendering" line before it starts and a "✓" line when it finishes, so the last
 line shows exactly where it stopped.
 

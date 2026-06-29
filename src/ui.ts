@@ -61,8 +61,9 @@ const compactQualityVal = $<HTMLSpanElement>("compact-quality-val");
 const statusEl = $<HTMLDivElement>("status");
 const progressWrap = $<HTMLDivElement>("progress-wrap");
 const progressBar = $<HTMLDivElement>("progress-bar");
-const logBox = $<HTMLDetailsElement>("log-box");
 const logEl = $<HTMLPreElement>("log");
+const menuBtn = $<HTMLButtonElement>("menu-btn");
+const menuPop = $<HTMLDivElement>("menu-pop");
 const copyLogBtn = $<HTMLButtonElement>("copy-log");
 
 // ---- state ------------------------------------------------------------------
@@ -91,12 +92,13 @@ function setProgress(done: number, total: number) {
 
 function appendLog(text: string) {
   logEl.textContent += (logEl.textContent ? "\n" : "") + text;
-  logEl.scrollTop = logEl.scrollHeight;
+  // The log panel is hidden; surface the latest line as live progress instead.
+  statusEl.textContent = text;
+  statusEl.className = "status";
 }
 
 function clearLog() {
   logEl.textContent = "";
-  logBox.open = true; // reveal the log so progress is visible during export
 }
 
 function fmtBytes(n: number): string {
@@ -318,7 +320,7 @@ async function buildCompactAndDownload() {
     `Done — ${compactFrames.length} page(s), ${fmtBytes(result.bytes.length)} · ${result.textRuns} text runs${linkNote}.`,
     "success"
   );
-  appendLog("Done.");
+  logEl.textContent += "\nDone.";
   setProgress(0, 0);
   setBusy(false);
   updateExportLabel();
@@ -453,19 +455,25 @@ exportBtn.onclick = () => {
   );
 };
 
-copyLogBtn.onclick = (e) => {
-  e.preventDefault();
-  e.stopPropagation(); // don't toggle the <details>
+menuBtn.onclick = (e) => {
+  e.stopPropagation();
+  menuPop.hidden = !menuPop.hidden;
+};
+document.addEventListener("click", () => {
+  menuPop.hidden = true;
+});
+
+copyLogBtn.onclick = () => {
   const text = logEl.textContent || "";
   const done = (ok: boolean) => {
-    copyLogBtn.textContent = ok ? "Copied" : "Select & copy";
-    setTimeout(() => (copyLogBtn.textContent = "Copy"), 1500);
+    copyLogBtn.textContent = ok ? "Copied ✓" : "Copy failed";
+    setTimeout(() => {
+      copyLogBtn.textContent = "Copy logs";
+      menuPop.hidden = true;
+    }, 1000);
   };
   try {
-    navigator.clipboard.writeText(text).then(
-      () => done(true),
-      () => done(false)
-    );
+    navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
   } catch {
     done(false);
   }

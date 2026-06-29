@@ -147,43 +147,58 @@
       .status.error { color: var(--error); }
       .status.success { color: var(--success); }
 
-      #log-box { border-top: 1px solid var(--border); padding-top: 8px; }
-      #log-box > summary {
-        cursor: pointer;
-        list-style: none;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-weight: 600;
+      .header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .menu { position: relative; }
+      #menu-btn {
+        width: 28px;
+        height: 24px;
+        padding: 0;
+        font-size: 16px;
+        line-height: 1;
         color: var(--text-secondary);
-      }
-      #log-box > summary::-webkit-details-marker { display: none; }
-      #copy-log {
-        width: auto;
-        padding: 3px 8px;
-        font-size: 11px;
-        font-weight: 500;
-        color: var(--text);
-        background: var(--input-bg);
-        border: 1px solid var(--border);
-        border-radius: 5px;
-      }
-      #log {
-        margin: 8px 0 0;
-        max-height: 160px;
-        overflow: auto;
-        padding: 8px;
-        background: var(--input-bg);
+        background: transparent;
+        border: 1px solid transparent;
         border-radius: 6px;
-        font: 10px/1.5 ui-monospace, Menlo, Consolas, monospace;
-        white-space: pre-wrap;
-        word-break: break-word;
-        color: var(--text-secondary);
+        cursor: pointer;
       }
+      #menu-btn:hover { background: var(--hover); color: var(--text); }
+      .menu-pop {
+        position: absolute;
+        top: 28px;
+        right: 0;
+        z-index: 10;
+        min-width: 130px;
+        padding: 4px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      }
+      .menu-pop[hidden] { display: none; }
+      .menu-pop button {
+        width: 100%;
+        padding: 7px 10px;
+        font: inherit;
+        text-align: left;
+        color: var(--text);
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .menu-pop button:hover { background: var(--hover); }
     </style>
   </head>
   <body>
-    <h1>Frames → PDF <span class="ver"><!-- VERSION --></span></h1>
+    <div class="header">
+      <h1>Frames → PDF <span class="ver"><!-- VERSION --></span></h1>
+      <div class="menu">
+        <button id="menu-btn" type="button" aria-label="More actions">⋯</button>
+        <div id="menu-pop" class="menu-pop" hidden>
+          <button id="copy-log" type="button">Copy logs</button>
+        </div>
+      </div>
+    </div>
 
     <div class="list-head">
       <span id="count">Loading frames…</span>
@@ -272,13 +287,7 @@
     <div id="progress-wrap"><div id="progress-bar"></div></div>
     <div id="status" class="status"></div>
 
-    <details id="log-box">
-      <summary>
-        <span>Log</span>
-        <button id="copy-log" type="button">Copy</button>
-      </summary>
-      <pre id="log"></pre>
-    </details>
+    <pre id="log" hidden></pre>
 
     <!-- BUNDLE -->
   </body>
