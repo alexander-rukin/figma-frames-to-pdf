@@ -1,6 +1,6 @@
 {
   "name": "figma-frames-to-pdf",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "description": "Export selected Figma frames into a single, lightweight PDF with selectable text.",
   "scripts": {
     "build": "node build.mjs",
